@@ -1,6 +1,9 @@
 # 현재 설정된 AWS 리전 정보 불러오기
 data "aws_region" "current" {}
 
+# data "aws_region" "current" {
+#   region = var.region
+# }
 # 현재 설정된 AWS 리전에 있는 가용영역 정보 불러오기
 data "aws_availability_zones" "azs" {}
 
