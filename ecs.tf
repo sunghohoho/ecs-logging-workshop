@@ -1,14 +1,16 @@
 locals {
   name   = "ex-${basename(path.cwd)}"
 
-  container_name = "ecsdemo-sample"
+  container_name = "ecs-ns"
   container_port = 80
+  
+  # svc-name = ["web","cat","dog"]
 }
 
 module "ecs" {
   source = "terraform-aws-modules/ecs/aws"
 
-  cluster_name = "ecs-integrated"
+  cluster_name = "ecs-sample-cluster"
 
   cluster_configuration = {
     execute_command_configuration = {
@@ -31,13 +33,10 @@ module "ecs" {
   }
 
   services = {
-    ecsdemo-sample = {
+    web-service = {
       cpu    = 1024
       memory = 4096
       
-      task_exec_iam_role_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/ecsTaskExecutionRole"
-      tasks_iam_role_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/ecsTaskExecutionRole"
-
       # Container definition(s)
       container_definitions = {
 
@@ -52,14 +51,14 @@ module "ecs" {
           memoryReservation = 50
         }
 
-        ecsdemo-sample = {
+        web-containers = {
           cpu       = 512
           memory    = 1024
           essential = true
-          image     = "nginx:stable-alpine3.21-perl"
+          image     = "public.ecr.aws/d4j3m3g7/gguduck/registry:mainwebs"
           portMappings = [
             {
-              name          = "ecsdemo-sample"
+              name          = "web-container-port"
               containerPort = 80
               protocol      = "tcp"
             }
@@ -87,24 +86,156 @@ module "ecs" {
         }
       }
 
-      service_connect_configuration = {
-        namespace = aws_service_discovery_http_namespace.this.arn
-        service = [
-          {
-            client_alias = {
-              port     = local.container_port
-              dns_name = local.container_name
-            }
-            port_name      = local.container_name
-            discovery_name = local.container_name
-          }
-        ]
-      }
+      # service_connect_configuration = {
+      #   namespace = aws_service_discovery_http_namespace.this.arn
+      #   service = [
+      #     {
+      #       client_alias = {
+      #         port     = local.container_port
+      #         dns_name = "${local.container_name}"
+      #       }
+      #       port_name      = "web-container-port"
+      #       discovery_name = aws_service_discovery_http_namespace.this.name
+      #     }
+      #   ]
+      # }
 
       load_balancer = {
         service = {
-          target_group_arn = module.alb.target_groups["ex_ecs"].arn
-          container_name   = local.container_name
+          target_group_arn = module.alb.target_groups["web-target"].arn
+          container_name   = "web-containers"
+          container_port   = local.container_port
+        }
+  }
+
+      subnet_ids = module.vpc.private_subnets
+      security_group_ingress_rules = {
+        alb_80 = {
+          description                  = "Service port"
+          from_port                    = local.container_port
+          ip_protocol                  = "tcp"
+          referenced_security_group_id = module.alb.security_group_id
+        }
+      }
+      security_group_egress_rules = {
+        all = {
+          ip_protocol = "-1"
+          cidr_ipv4   = "0.0.0.0/0"
+        }
+      }
+    }
+    
+    cat-service = {
+      cpu    = 1024
+      memory = 4096
+      
+      # Container definition(s)
+      container_definitions = {
+        cat-containers = {
+          cpu       = 512
+          memory    = 1024
+          essential = true
+          image     = "public.ecr.aws/d4j3m3g7/gguduck/registry:cats"
+          portMappings = [
+            {
+              name          = "cat-container-port"
+              containerPort = 80
+              protocol      = "tcp"
+            }
+          ]
+
+          # Example image used requires access to write to root filesystem
+          readonlyRootFilesystem = false
+
+          enable_cloudwatch_logging = true
+          memoryReservation = 100
+        }
+      }
+
+      # service_connect_configuration = {
+      #   namespace = aws_service_discovery_http_namespace.this.arn
+      #   service = [
+      #     {
+      #       client_alias = {
+      #         port     = local.container_port
+      #         dns_name = "${local.container_name}"
+      #       }
+      #       port_name      = "cat-container-port"
+      #       discovery_name = aws_service_discovery_http_namespace.this.name
+      #     }
+      #   ]
+      # }
+
+      load_balancer = {
+        service = {
+          target_group_arn = module.alb.target_groups["cat-target"].arn
+          container_name   = "cat-containers"
+          container_port   = local.container_port
+        }
+  }
+
+      subnet_ids = module.vpc.private_subnets
+      security_group_ingress_rules = {
+        alb_80 = {
+          description                  = "Service port"
+          from_port                    = local.container_port
+          ip_protocol                  = "tcp"
+          referenced_security_group_id = module.alb.security_group_id
+        }
+      }
+      security_group_egress_rules = {
+        all = {
+          ip_protocol = "-1"
+          cidr_ipv4   = "0.0.0.0/0"
+        }
+      }
+    }
+    
+    dog-service = {
+      cpu    = 1024
+      memory = 4096
+      
+      # Container definition(s)
+      container_definitions = {
+        dog-containers = {
+          cpu       = 512
+          memory    = 1024
+          essential = true
+          image     = "public.ecr.aws/d4j3m3g7/gguduck/registry:dogs"
+          portMappings = [
+            {
+              name          = "dog-container-port"
+              containerPort = 80
+              protocol      = "tcp"
+            }
+          ]
+
+          # Example image used requires access to write to root filesystem
+          readonlyRootFilesystem = false
+
+          enable_cloudwatch_logging = true
+          memoryReservation = 100
+        }
+      }
+
+      # service_connect_configuration = {
+      #   namespace = aws_service_discovery_http_namespace.this.arn
+      #   service = [
+      #     {
+      #       client_alias = {
+      #         port     = local.container_port
+      #         dns_name = "${local.container_name}"
+      #       }
+      #       port_name      = "dog-container-port"
+      #       discovery_name = aws_service_discovery_http_namespace.this.name
+      #     }
+      #   ]
+      # }
+
+      load_balancer = {
+        service = {
+          target_group_arn = module.alb.target_groups["dog-target"].arn
+          container_name   = "dog-containers"
           container_port   = local.container_port
         }
   }
@@ -126,17 +257,12 @@ module "ecs" {
       }
     }
   }
-
-  tags = {
-    Environment = "Development"
-    Project     = "Example"
-  }
   
   depends_on = [ module.alb, aws_service_discovery_http_namespace.this ]
 }
 
 resource "aws_service_discovery_http_namespace" "this" {
-  name        = local.name
+  name        = "${local.name}-service-discovery-ns"
   description = "CloudMap namespace for ${local.project}"
   tags        = local.tags
 }
@@ -145,7 +271,7 @@ module "alb" {
   source  = "terraform-aws-modules/alb/aws"
   version = "~> 9.0"
 
-  name = local.name
+  name = "${local.project}-alb"
 
   load_balancer_type = "application"
 
@@ -172,18 +298,46 @@ module "alb" {
   }
 
   listeners = {
-    ex_http = {
+    web_http = {
       port     = 80
       protocol = "HTTP"
 
       forward = {
-        target_group_key = "ex_ecs"
+        target_group_key = "web-target"
+      }
+      
+      rules = {
+        cat = {
+          actions = [{
+              type = "forward"
+              target_group_key = "cat-target"
+            }]
+            
+          conditions = [{
+            path_pattern = {
+                values = ["/cats/"]
+              }
+            }]
+        }
+        
+        dog = {
+          actions = [{
+              type = "forward"
+              target_group_key = "dog-target"
+            }]
+            
+          conditions = [{
+            path_pattern = {
+                values = ["/dogs/"]
+              }
+            }]
+          }
+        }
       }
     }
-  }
 
   target_groups = {
-    ex_ecs = {
+    web-target = {
       backend_protocol                  = "HTTP"
       backend_port                      = local.container_port
       target_type                       = "ip"
@@ -202,8 +356,50 @@ module "alb" {
         unhealthy_threshold = 2
       }
 
-      # There's nothing to attach here in this definition. Instead,
-      # ECS will attach the IPs of the tasks to this target group
+      create_attachment = false
+    }
+    
+    cat-target = {
+      backend_protocol                  = "HTTP"
+      backend_port                      = local.container_port
+      target_type                       = "ip"
+      deregistration_delay              = 5
+      load_balancing_cross_zone_enabled = true
+
+      health_check = {
+        enabled             = true
+        healthy_threshold   = 5
+        interval            = 30
+        matcher             = "200"
+        path                = "/"
+        port                = "traffic-port"
+        protocol            = "HTTP"
+        timeout             = 5
+        unhealthy_threshold = 2
+      }
+
+      create_attachment = false
+    }
+    
+    dog-target = {
+      backend_protocol                  = "HTTP"
+      backend_port                      = local.container_port
+      target_type                       = "ip"
+      deregistration_delay              = 5
+      load_balancing_cross_zone_enabled = true
+
+      health_check = {
+        enabled             = true
+        healthy_threshold   = 5
+        interval            = 30
+        matcher             = "200"
+        path                = "/"
+        port                = "traffic-port"
+        protocol            = "HTTP"
+        timeout             = 5
+        unhealthy_threshold = 2
+      }
+
       create_attachment = false
     }
   }
