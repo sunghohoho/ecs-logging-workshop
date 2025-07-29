@@ -55,7 +55,7 @@ module "ecs" {
           cpu       = 512
           memory    = 1024
           essential = true
-          image     = "public.ecr.aws/d4j3m3g7/gguduck/registry:mainwebs"
+          image     = "public.ecr.aws/d4j3m3g7/gguduck/registry:websv0.2"
           portMappings = [
             {
               name          = "web-container-port"
@@ -135,7 +135,7 @@ module "ecs" {
           cpu       = 512
           memory    = 1024
           essential = true
-          image     = "public.ecr.aws/d4j3m3g7/gguduck/registry:cats"
+          image     = "public.ecr.aws/d4j3m3g7/gguduck/registry:catsv0.1"
           portMappings = [
             {
               name          = "cat-container-port"
@@ -201,7 +201,7 @@ module "ecs" {
           cpu       = 512
           memory    = 1024
           essential = true
-          image     = "public.ecr.aws/d4j3m3g7/gguduck/registry:dogs"
+          image     = "public.ecr.aws/d4j3m3g7/gguduck/registry:dogsv0.1"
           portMappings = [
             {
               name          = "dog-container-port"
