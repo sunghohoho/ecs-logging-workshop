@@ -10,9 +10,9 @@ data "aws_availability_zones" "azs" {}
 # AWS 자격증명 정보
 data "aws_caller_identity" "current" {}
 
-# Route53 호스트존
-data "aws_route53_zone" "ksh" {
-  provider = aws.ksh
+# # Route53 호스트존
+# data "aws_route53_zone" "ksh" {
+#   provider = aws.ksh
 
-  name = "gguduck.com."
-}
+#   name = "gguduck.com."
+# }
