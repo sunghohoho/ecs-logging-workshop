@@ -4,7 +4,7 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "6.0.0"
+      version = "6.4.0"
     }
   }
 }
@@ -18,10 +18,10 @@ provider "aws" {
   }
 }
 
-# provider "aws" {
-#   alias = "ksh"
+provider "aws" {
+  alias = "ksh"
 
-#   assume_role {
-#     role_arn = "arn:aws:iam::866477832211:role/AmazonRoute53FullAccess-Role"
-#   }
-# }
+  assume_role {
+    role_arn = "arn:aws:iam::866477832211:role/AmazonRoute53FullAccess-Role"
+  }
+}
