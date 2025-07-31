@@ -56,7 +56,7 @@ module "ecs-ec2" {
           alb_http = {
             from_port                    = local.container_port
             description                  = "Service port"
-            referenced_security_group_id = module.alb.security_group_id
+            cidr_ipv4                    = "0.0.0.0/0"
             }
           }
         }
@@ -118,6 +118,12 @@ module "autoscaling" {
   autoscaling_group_tags = {
     AmazonECSManaged = true
   }
+  
+  network_interfaces = [
+  {
+     associate_public_ip_address = true
+  }
+  ]
 
   # Required for  managed_termination_protection = "ENABLED"
   protect_from_scale_in = true
@@ -131,13 +137,15 @@ module "autoscaling_sg" {
   description = "Autoscaling group security group"
   vpc_id      = module.vpc.vpc_id
 
-  computed_ingress_with_source_security_group_id = [
+  ingress_with_cidr_blocks = [
     {
-      rule                     = "http-80-tcp"
-      source_security_group_id = module.alb.security_group_id
+      from_port   = 80
+      to_port     = 80
+      protocol    = "tcp"
+      description = "User-service ports"
+      cidr_blocks = "0.0.0.0/0"
     }
   ]
-  number_of_computed_ingress_with_source_security_group_id = 1
 
   egress_rules = ["all-all"]
 
