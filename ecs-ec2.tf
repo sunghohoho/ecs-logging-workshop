@@ -22,7 +22,7 @@ module "ecs-ec2" {
       managed_termination_protection = "ENABLED"
 
       managed_scaling = {
-        maximum_scaling_step_size = 2
+        maximum_scaling_step_size = 1
         minimum_scaling_step_size = 1
         status                    = "ENABLED"
         target_capacity           = 60
@@ -32,14 +32,14 @@ module "ecs-ec2" {
     
     services = {
       sample-service = {
-        cpu = 256
-        memory = 256
+        cpu = 1024
+        memory = 1024
         requires_compatibilities = ["EC2"]
         launch_type  =  "EC2"
 
         container_definitions = {
           sample-contianers = {
-            image = "public.ecr.aws/ecs-sample-image/amazon-ecs-sample:latest"
+            image = "ealen/echo-server"
             portMappings = [
               {
                 name          = local.container_name
@@ -83,9 +83,10 @@ module "autoscaling" {
         #!/bin/bash
 
         cat <<'EOF' >> /etc/ecs/ecs.config
-        ECS_CLUSTER="${local.project}-sample"
+        ECS_CLUSTER=${local.project}-sample
         ECS_LOGLEVEL=debug
         ECS_ENABLE_TASK_IAM_ROLE=true
+        ECS_CONTAINER_INSTANCE_TAGS=${jsonencode(local.tags)}
         EOF
       EOT
     }
@@ -111,7 +112,7 @@ module "autoscaling" {
   vpc_zone_identifier = module.vpc.public_subnets
   health_check_type   = "EC2"
   min_size            = 1
-  max_size            = 2
+  max_size            = 1
   desired_capacity    = 1
 
   # https://github.com/hashicorp/terraform-provider-aws/issues/12582
