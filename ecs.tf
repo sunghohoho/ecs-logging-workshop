@@ -68,6 +68,22 @@ module "ecs" {
           memoryReservation = 100
         }
       }
+      
+       # 태스크 실행 역할에 log_group에 대한 설정
+      task_exec_iam_statements = [
+        {
+          sid       = "AllowCloudWatchLogs"
+          actions   = [
+            "logs:CreateLogGroup",
+            "logs:CreateLogStream",
+            "logs:PutLogEvents"
+          ]
+          effect    = "Allow"
+          resources = [
+            "*"
+          ]
+        }
+      ]
 
       load_balancer = {
         service = {
@@ -251,6 +267,19 @@ module "ecs" {
           memoryReservation = 100
         }
       }
+      
+      tasks_iam_role_statements = [
+      {
+        sid       = "Allowfirehose"
+        actions   = [
+          "firehose:PutRecordBatch"
+        ]
+        effect    = "Allow"
+        resources = [
+          "*"
+        ]
+      }
+    ]
 
       load_balancer = {
         service = {
