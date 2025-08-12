@@ -34,8 +34,7 @@ module "ecs" {
     web-service = {
       cpu    = 1024
       memory = 4096
-      
-      # Container definition(s)
+
       container_definitions = {
         web-containers = {
           cpu       = 256
@@ -49,27 +48,21 @@ module "ecs" {
               protocol      = "tcp"
             }
           ]
-          
-          # 태스크 실행 역할에 log_group에 대한 설정 필요
           logConfiguration = {
             logDriver = "awslogs"
             options = {
-              awslogs-region = "ap-northeast-2"
-              awslogs-group = "/ecs/${local.project}/webs",
-              awslogs-create-group = "true",
+              awslogs-region        = "ap-northeast-2"
+              awslogs-group         = "/ecs/${local.project}/webs"
+              awslogs-create-group  = "true"
               awslogs-stream-prefix = "webs"
             }
           }
-
-          # Example image used requires access to write to root filesystem
-          readonlyRootFilesystem = false
-
+          readonlyRootFilesystem    = false
           enable_cloudwatch_logging = false
-          memoryReservation = 100
+          memoryReservation         = 100
         }
       }
-      
-       # 태스크 실행 역할에 log_group에 대한 설정
+
       task_exec_iam_statements = [
         {
           sid       = "AllowCloudWatchLogs"
@@ -79,9 +72,7 @@ module "ecs" {
             "logs:PutLogEvents"
           ]
           effect    = "Allow"
-          resources = [
-            "*"
-          ]
+          resources = ["*"]
         }
       ]
 
@@ -109,12 +100,11 @@ module "ecs" {
         }
       }
     }
-    
+
     cat-service = {
       cpu    = 1024
       memory = 4096
-      
-      # Container definition(s)
+
       container_definitions = {
         cat-containers = {
           cpu       = 256
@@ -128,12 +118,9 @@ module "ecs" {
               protocol      = "tcp"
             }
           ]
-
-          # Example image used requires access to write to root filesystem
-          readonlyRootFilesystem = false
-
+          readonlyRootFilesystem    = false
           enable_cloudwatch_logging = true
-          memoryReservation = 100
+          memoryReservation         = 100
         }
       }
 
@@ -161,12 +148,11 @@ module "ecs" {
         }
       }
     }
-    
+
     dog-service = {
       cpu    = 1024
       memory = 4096
-      
-      # Container definition(s)
+
       container_definitions = {
         dog-containers = {
           cpu       = 256
@@ -180,12 +166,9 @@ module "ecs" {
               protocol      = "tcp"
             }
           ]
-
-          # Example image used requires access to write to root filesystem
-          readonlyRootFilesystem = false
-
+          readonlyRootFilesystem    = false
           enable_cloudwatch_logging = true
-          memoryReservation = 100
+          memoryReservation         = 100
         }
       }
 
@@ -217,11 +200,8 @@ module "ecs" {
     log-service = {
       cpu    = 1024
       memory = 4096
-      
-      # Container definition(s)
+
       container_definitions = {
-        
-        # task 역할에 firehose 설정 필요
         fluent-bit = {
           cpu       = 512
           memory    = 1024
@@ -238,6 +218,8 @@ module "ecs" {
           memory    = 1024
           essential = true
           image     = "public.ecr.aws/d4j3m3g7/gguduck/registry:logsv2.3"
+          # requires_compatibilities = ["EC2"]
+          # launch_type = "EC2"
           portMappings = [
             {
               name          = "log-container-port"
@@ -245,41 +227,41 @@ module "ecs" {
               protocol      = "tcp"
             }
           ]
-
-          # Example image used requires access to write to root filesystem
           readonlyRootFilesystem = false
-
           dependsOn = [{
             containerName = "fluent-bit"
             condition     = "START"
           }]
-
           enable_cloudwatch_logging = false
           logConfiguration = {
             logDriver = "awsfirelens"
             options = {
-              Name                    = "firehose"
-              region                  = "${data.aws_region.current.region}"
-              delivery_stream         = "${local.project}"
-              log-driver-buffer-limit = "2097152"
+              Name             = "cloudwatch"
+              region           = "ap-northeast-2"
+              log_key          = "log"
+              log_group_name   = "/aws/ecs/${local.project}/application"
+              auto_create_group = "true"
+              log_stream_name  = "${local.project}"
+              retry_limit      = "2"
             }
           }
           memoryReservation = 100
         }
       }
-      
+
       tasks_iam_role_statements = [
-      {
-        sid       = "Allowfirehose"
-        actions   = [
-          "firehose:PutRecordBatch"
-        ]
-        effect    = "Allow"
-        resources = [
-          "*"
-        ]
-      }
-    ]
+        {
+          sid       = "Allowfirehose"
+          actions   = [
+            "logs:CreateLogGroup",
+            "logs:CreateLogStream",
+            "logs:PutLogEvents",
+            "logs:DescribeLogStreams"
+          ]
+          effect    = "Allow"
+          resources = ["*"]
+        }
+      ]
 
       load_balancer = {
         service = {
@@ -306,8 +288,8 @@ module "ecs" {
       }
     }
   }
-  
-  depends_on = [ module.alb ]
+
+  depends_on = [module.alb]
 }
 
 #############################################################################
@@ -487,3 +469,9 @@ module "alb" {
 
   tags = local.tags
 }
+
+# # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-optimized_AMI.html#ecs-optimized-ami-linux
+# data "aws_ssm_parameter" "ecs_optimized_ami" {
+#   name = "/aws/service/ecs/optimized-ami/amazon-linux-2023/recommended"
+# }
+
