@@ -225,9 +225,9 @@ module "autoscaling" {
 
   vpc_zone_identifier = module.vpc.private_subnets
   health_check_type   = "EC2"
-  min_size            = 0
-  max_size            = 0
-  desired_capacity    = 0
+  min_size            = 1
+  max_size            = 1
+  desired_capacity    = 1
 
   # https://github.com/hashicorp/terraform-provider-aws/issues/12582
   autoscaling_group_tags = {
@@ -270,4 +270,14 @@ module "autoscaling_sg" {
 
 output "asg_name" {
   value = module.autoscaling.ex_1.autoscaling_group_name
+}
+
+# fluentbit custom config 파일을 전달할 S3 버킷 생성
+resource "aws_s3_bucket" "fluentbit-conf" {
+  bucket = "${local.project}-fb-${random_string.domain_prefix.result}"
+  force_destroy = true
+}
+
+output "fb_bucket_name" {
+  value = aws_s3_bucket.fluentbit-conf.id
 }

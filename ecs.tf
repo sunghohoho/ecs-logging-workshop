@@ -252,6 +252,12 @@ module "ecs" {
           firelensConfiguration = {
             type = "fluentbit"
           }
+          environment = [
+            {
+                "name": "aws_fluent_bit_config",
+                "value": "arn:aws:s3:::${aws_s3_bucket.fluentbit-conf.id}/init"
+            }
+          ]
           memoryReservation = 50
         }
 
@@ -303,7 +309,8 @@ module "ecs" {
             "logs:CreateLogGroup",
             "logs:CreateLogStream",
             "logs:PutLogEvents",
-            "logs:DescribeLogStreams"
+            "logs:DescribeLogStreams",
+            "s3:*"
           ]
           effect    = "Allow"
           resources = ["*"]
@@ -353,3 +360,5 @@ module "ecs" {
 
 # fluentbit 경로  컨테이너 내부에서 /fluent-bit/etc
 # cd /fluent-bit/etc
+
+# cd /var/lib/docker/containers/$(docker ps --filter "ancestor=public.ecr.aws/d4j3m3g7/gguduck/registry:websv0.5" -q) sh
