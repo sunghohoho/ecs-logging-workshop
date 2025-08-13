@@ -9,7 +9,8 @@ module "ecs" {
   source = "terraform-aws-modules/ecs/aws"
 
   cluster_name = local.project
-
+  
+  # Cluster 로깅 설정
   cluster_configuration = {
     execute_command_configuration = {
       logging = "OVERRIDE"
@@ -19,7 +20,7 @@ module "ecs" {
     }
   }
 
-  # Cluster capacity providers
+  # 기본 용량공급자 설정
   default_capacity_provider_strategy = {
     FARGATE = {
       weight = 50
@@ -29,7 +30,25 @@ module "ecs" {
       weight = 50
     }
   }
+  
+  # EC2 유형의 용량 공급자 설정, 아래 선언한 Autoscaling 지정
+  autoscaling_capacity_providers = {
+    # On-demand instances
+    ex_1 = {
+      auto_scaling_group_arn         = module.autoscaling["ex_1"].autoscaling_group_arn
+      managed_draining               = "ENABLED"
+      managed_termination_protection = "ENABLED"
 
+      managed_scaling = {
+        maximum_scaling_step_size = 1
+        minimum_scaling_step_size = 1
+        status                    = "ENABLED"
+        target_capacity           = 60
+      }
+    }
+  }
+
+  # 서비스 설정
   services = {
     web-service = {
       cpu    = 1024
@@ -48,6 +67,8 @@ module "ecs" {
               protocol      = "tcp"
             }
           ]
+          
+          # Cloudwatch Logs로 향하도록 awslogs 로그 드라이버 설정
           logConfiguration = {
             logDriver = "awslogs"
             options = {
@@ -62,7 +83,8 @@ module "ecs" {
           memoryReservation         = 100
         }
       }
-
+      
+      # 서비스 실행 시 Cloudwatch Log 그룹 생성을 위한 task 실행역할 생성
       task_exec_iam_statements = [
         {
           sid       = "AllowCloudWatchLogs"
@@ -75,7 +97,8 @@ module "ecs" {
           resources = ["*"]
         }
       ]
-
+      
+      # 외부 접근을 위한 로드 밸런서 설정
       load_balancer = {
         service = {
           target_group_arn = module.alb.target_groups["web-target"].arn
@@ -196,15 +219,27 @@ module "ecs" {
         }
       }
     }
-
+  
+    # 로그 생성을 위한 서비스 생성
     log-service = {
       cpu    = 1024
       memory = 4096
-
+      
+     # log continaer의 경우 EC2 위에 띄우기 위해 용량공급자 EC2로 설정
+      capacity_provider_strategy = {
+        # On-demand instances
+        ex_1 = {
+          capacity_provider = "ex_1"
+          weight            = 1
+          base              = 1
+        }
+      }
+      
       container_definitions = {
+        # aws-for-fluentbit 컨테이너 생성, 사이드카 설정
         fluent-bit = {
-          cpu       = 512
-          memory    = 1024
+          cpu       = 256
+          memory    = 512
           essential = true
           image     = "public.ecr.aws/aws-observability/aws-for-fluent-bit:stable"
           firelensConfiguration = {
@@ -214,12 +249,13 @@ module "ecs" {
         }
 
         log-containers = {
-          cpu       = 512
-          memory    = 1024
+          cpu       = 256
+          memory    = 512
           essential = true
           image     = "public.ecr.aws/d4j3m3g7/gguduck/registry:logsv2.3"
-          # requires_compatibilities = ["EC2"]
-          # launch_type = "EC2"
+          requires_compatibilities = ["EC2"]
+          launch_type = "EC2"
+          
           portMappings = [
             {
               name          = "log-container-port"
@@ -233,6 +269,9 @@ module "ecs" {
             condition     = "START"
           }]
           enable_cloudwatch_logging = false
+          
+          # fluentbit 설정을 위한 awsfirelens 로그 드라이버 설정
+          # app -> fluentbit -> cloudwatch logs로 전달하도록 옵션 설정
           logConfiguration = {
             logDriver = "awsfirelens"
             options = {
@@ -248,7 +287,8 @@ module "ecs" {
           memoryReservation = 100
         }
       }
-
+      
+      # Cloudwatch Logs 생성을 위한 권한 부여
       tasks_iam_role_statements = [
         {
           sid       = "Allowfirehose"
@@ -262,7 +302,7 @@ module "ecs" {
           resources = ["*"]
         }
       ]
-
+      
       load_balancer = {
         service = {
           target_group_arn = module.alb.target_groups["log-target"].arn
@@ -470,8 +510,127 @@ module "alb" {
   tags = local.tags
 }
 
-# # https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-optimized_AMI.html#ecs-optimized-ami-linux
-# data "aws_ssm_parameter" "ecs_optimized_ami" {
-#   name = "/aws/service/ecs/optimized-ami/amazon-linux-2023/recommended"
+# ECS EC2 유형의 용량공급자에 사용할 최적화 AMI 가져오기
+# https://docs.aws.amazon.com/AmazonECS/latest/developerguide/ecs-optimized_AMI.html#ecs-optimized-ami-linux
+data "aws_ssm_parameter" "ecs_optimized_ami" {
+  name = "/aws/service/ecs/optimized-ami/amazon-linux-2023/recommended"
+}
+
+module "autoscaling" {
+  source  = "terraform-aws-modules/autoscaling/aws"
+  version = "~> 9.0"
+
+  for_each = {
+    # On-demand instances
+    ex_1 = {
+      instance_type              = "t3.large"
+      use_mixed_instances_policy = false
+      mixed_instances_policy     = null
+      user_data                  = <<-EOT
+        #!/bin/bash
+
+        cat <<'EOF' >> /etc/ecs/ecs.config
+        ECS_CLUSTER=${local.project}
+        ECS_LOGLEVEL=debug
+        ECS_ENABLE_TASK_IAM_ROLE=true
+        ECS_CONTAINER_INSTANCE_TAGS=${jsonencode(local.tags)}
+        EOF
+      EOT
+    }
+  }
+
+  name = "${local.project}-${each.key}"
+
+  image_id      = jsondecode(data.aws_ssm_parameter.ecs_optimized_ami.value)["image_id"]
+  instance_type = each.value.instance_type
+
+  security_groups                 = [module.autoscaling_sg.security_group_id]
+  user_data                       = base64encode(each.value.user_data)
+  ignore_desired_capacity_changes = true
+
+  create_iam_instance_profile = true
+  iam_role_name               = local.project
+  iam_role_description        = "ECS role for ${local.project}"
+  iam_role_policies = {
+    AmazonEC2ContainerServiceforEC2Role = "arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role"
+    AmazonSSMManagedInstanceCore        = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+    AmazonEC2ContainerRegistryFullAccess = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryFullAccess"
+  }
+
+  vpc_zone_identifier = module.vpc.private_subnets
+  health_check_type   = "EC2"
+  min_size            = 0
+  max_size            = 0
+  desired_capacity    = 0
+
+  # https://github.com/hashicorp/terraform-provider-aws/issues/12582
+  autoscaling_group_tags = {
+    AmazonECSManaged = true
+  }
+
+  # Required for  managed_termination_protection = "ENABLED"
+  protect_from_scale_in = true
+}
+
+module "autoscaling_sg" {
+  source  = "terraform-aws-modules/security-group/aws"
+  version = "~> 5.0"
+
+  name        = local.project
+  description = "Autoscaling group security group"
+  vpc_id      = module.vpc.vpc_id
+
+  ingress_with_cidr_blocks = [
+    {
+      from_port   = 80
+      to_port     = 80
+      protocol    = "tcp"
+      description = "User-service ports"
+      cidr_blocks = "0.0.0.0/0"
+    },
+    {
+      from_port   = 8080
+      to_port     = 8080
+      protocol    = "tcp"
+      description = "User-service ports"
+      cidr_blocks = "0.0.0.0/0"
+    }
+  ]
+
+  egress_rules = ["all-all"]
+
+  tags = local.tags
+}
+
+# output "autoscaling" {
+#   value = module.autoscaling.autoscaling_group_name["ex_1"]
 # }
 
+# resource "null_resource" "refresh" {
+#   provisioner "local-exec" {
+#     command = <<EOT
+#       aws autoscaling start-instance-refresh \
+#         --auto-scaling-group-name ${module.autoscaling.ex_1.autoscaling_group_name}
+#     EOT
+#   }
+  
+#   depends_on = [ 
+#     module.ecs,
+#     module.autoscaling
+#   ]
+# }
+
+output "asg_name" {
+  value = module.autoscaling.ex_1.autoscaling_group_name
+}
+
+# 정상 배포되면 이후에 아래 명령어로 asg 갯수 1개로 증가
+
+# aws autoscaling update-auto-scaling-group \
+#   --auto-scaling-group-name $(terraform output -raw asg_name) \
+#   --min-size 1 \
+#   --max-size 1 \
+#   --desired-capacity 1 \
+#   --region ap-northeast-2
+
+# fluentbit 경로  컨테이너 내부에서 /fluent-bit/etc
