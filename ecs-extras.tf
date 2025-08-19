@@ -41,32 +41,6 @@ module "alb" {
       }
       
       rules = {
-        cat = {
-          actions = [{
-              type = "forward"
-              target_group_key = "cat-target"
-            }]
-            
-          conditions = [{
-            path_pattern = {
-                values = ["/cats/"]
-              }
-            }]
-        }
-        
-        dog = {
-          actions = [{
-              type = "forward"
-              target_group_key = "dog-target"
-            }]
-            
-          conditions = [{
-            path_pattern = {
-                values = ["/dogs/"]
-              }
-            }]
-          }
-          
         log = {
           actions = [{
               type = "forward"
@@ -85,50 +59,6 @@ module "alb" {
 
   target_groups = {
     web-target = {
-      backend_protocol                  = "HTTP"
-      backend_port                      = local.http_port
-      target_type                       = "ip"
-      deregistration_delay              = 5
-      load_balancing_cross_zone_enabled = true
-
-      health_check = {
-        enabled             = true
-        healthy_threshold   = 5
-        interval            = 30
-        matcher             = "200"
-        path                = "/"
-        port                = "traffic-port"
-        protocol            = "HTTP"
-        timeout             = 5
-        unhealthy_threshold = 2
-      }
-
-      create_attachment = false
-    }
-    
-    cat-target = {
-      backend_protocol                  = "HTTP"
-      backend_port                      = local.http_port
-      target_type                       = "ip"
-      deregistration_delay              = 5
-      load_balancing_cross_zone_enabled = true
-
-      health_check = {
-        enabled             = true
-        healthy_threshold   = 5
-        interval            = 30
-        matcher             = "200"
-        path                = "/"
-        port                = "traffic-port"
-        protocol            = "HTTP"
-        timeout             = 5
-        unhealthy_threshold = 2
-      }
-
-      create_attachment = false
-    }
-    
-    dog-target = {
       backend_protocol                  = "HTTP"
       backend_port                      = local.http_port
       target_type                       = "ip"
@@ -257,6 +187,13 @@ module "autoscaling_sg" {
     {
       from_port   = 8080
       to_port     = 8080
+      protocol    = "tcp"
+      description = "User-service ports"
+      cidr_blocks = "0.0.0.0/0"
+    },
+    {
+      from_port   = 9090
+      to_port     = 9090
       protocol    = "tcp"
       description = "User-service ports"
       cidr_blocks = "0.0.0.0/0"

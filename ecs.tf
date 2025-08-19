@@ -20,12 +20,9 @@ module "ecs" {
 
   # 기본 용량공급자 설정
   default_capacity_provider_strategy = {
-    FARGATE = {
+    ex_1 = {
       weight = 50
       base   = 20
-    }
-    FARGATE_SPOT = {
-      weight = 50
     }
   }
   
@@ -130,115 +127,170 @@ module "ecs" {
         }
       }
     }
-
-    cat-service = {
-      cpu    = 1024
-      memory = 4096
-
-      container_definitions = {
-        cat-containers = {
-          cpu       = 256
-          memory    = 256
-          essential = true
-          image     = "public.ecr.aws/d4j3m3g7/gguduck/registry:catsv0.1"
-          portMappings = [
-            {
-              name          = "cat-container-port"
-              containerPort = local.http_port
-              protocol      = "tcp"
-            }
-          ]
-          readonlyRootFilesystem    = false
-          enable_cloudwatch_logging = true
-          memoryReservation         = 100
-        }
-      }
-
-      load_balancer = {
-        service = {
-          target_group_arn = module.alb.target_groups["cat-target"].arn
-          container_name   = "cat-containers"
-          container_port   = local.http_port
-        }
-      }
-
-      subnet_ids = module.vpc.private_subnets
-      security_group_ingress_rules = {
-        alb_80 = {
-          description                  = "Service port"
-          from_port                    = local.http_port
-          ip_protocol                  = "tcp"
-          referenced_security_group_id = module.alb.security_group_id
-        }
-      }
-      security_group_egress_rules = {
-        all = {
-          ip_protocol = "-1"
-          cidr_ipv4   = "0.0.0.0/0"
-        }
-      }
-    }
-
-    dog-service = {
-      cpu    = 1024
-      memory = 4096
-
-      container_definitions = {
-        dog-containers = {
-          cpu       = 256
-          memory    = 256
-          essential = true
-          image     = "public.ecr.aws/d4j3m3g7/gguduck/registry:dogsv0.1"
-          portMappings = [
-            {
-              name          = "dog-container-port"
-              containerPort = local.http_port
-              protocol      = "tcp"
-            }
-          ]
-          readonlyRootFilesystem    = false
-          enable_cloudwatch_logging = true
-          memoryReservation         = 100
-        }
-      }
-
-      load_balancer = {
-        service = {
-          target_group_arn = module.alb.target_groups["dog-target"].arn
-          container_name   = "dog-containers"
-          container_port   = local.http_port
-        }
-      }
-
-      subnet_ids = module.vpc.private_subnets
-      security_group_ingress_rules = {
-        alb_80 = {
-          description                  = "Service port"
-          from_port                    = local.http_port
-          ip_protocol                  = "tcp"
-          referenced_security_group_id = module.alb.security_group_id
-        }
-      }
-      security_group_egress_rules = {
-        all = {
-          ip_protocol = "-1"
-          cidr_ipv4   = "0.0.0.0/0"
-        }
-      }
-    }
   
     # 로그 생성을 위한 서비스 생성
-    log-service = {
-      cpu    = 1024
-      memory = 4096
+    # log-service = {
+    #   cpu    = 1024
+    #   memory = 2048
       
-     # log continaer의 경우 EC2 위에 띄우기 위해 용량공급자 EC2로 설정
+    #   requires_compatibilities = ["EC2"]
+      
+    # # log continaer의 경우 EC2 위에 띄우기 위해 용량공급자 EC2로 설정
+    #   capacity_provider_strategy = {
+    #     # On-demand instances
+    #     ex_1 = {
+    #       capacity_provider = "ex_1"
+    #       weight            = 1
+    #       base              = 1
+    #     }
+    #   }
+      
+    #   volume = {
+    #     docker-logs = {
+    #       name       = "docker-logs"
+    #       host_path  = "/var/lib/docker/containers"
+    #     }
+    #   }
+      
+    #   container_definitions = {
+    #     # aws-for-fluentbit 컨테이너 생성, 사이드카 설정
+    #     fluent-bit = {
+    #       cpu       = 256
+    #       memory    = 512
+    #       essential = true
+    #       image     = "public.ecr.aws/aws-observability/aws-for-fluent-bit:stable"
+    #       mountPoints = [
+    #         {
+    #           sourceVolume  = "docker-logs"
+    #           containerPath = "/var/lib/docker/containers"
+    #           readOnly      = true
+    #         }
+    #       ]
+    #       firelensConfiguration = {
+    #         type = "fluentbit"
+    #         options = {
+    #           enable-ecs-log-metadata = "false"
+    #           config-file-type = "s3"
+    #           config-file-value = "arn:aws:s3:::ecs-logging-workshop-fb-mokgzwcbgbfcfopm/fluent-bit-custom.conf"
+    #         }
+    #       }
+    #       memoryReservation = 50
+    #     }
+
+    #     log-containers = {
+    #       cpu       = 256
+    #       memory    = 512
+    #       essential = true
+    #       # image = "mendhak/http-https-echo"
+    #       image     = "public.ecr.aws/d4j3m3g7/gguduck/registry:logsv2.8"
+    #       requires_compatibilities = ["EC2"]
+    #       launch_type = "EC2"
+          
+    #       portMappings = [
+    #         {
+    #           name          = "log-container-port"
+    #           containerPort = local.nginx_port
+    #           protocol      = "tcp"
+    #         }
+    #       ]
+    #       readonlyRootFilesystem = false
+    #       dependsOn = [{
+    #         containerName = "fluent-bit"
+    #         condition     = "START"
+    #       }]
+    #       enable_cloudwatch_logging = false
+          
+    #       # fluentbit 설정을 위한 awsfirelens 로그 드라이버 설정
+    #       # app -> fluentbit -> cloudwatch logs로 전달하도록 옵션 설정
+    #       logConfiguration = {
+    #         logDriver = "awsfirelens"
+    #         options = {
+    #           Name             = "cloudwatch"
+    #           region           = "ap-northeast-2"
+    #           log_key          = "log"
+    #           log_group_name   = "/ecs-workshop/${local.project}/application"
+    #           auto_create_group = "true"
+    #           log_stream_name  = "${local.project}"
+    #           retry_limit      = "2"
+    #         }
+    #       }
+    #       memoryReservation = 100
+    #     }
+    #   }
+      
+    #   # Cloudwatch Logs 생성을 위한 권한 부여
+    #   tasks_iam_role_statements = [
+    #     {
+    #       sid       = "Allowfirehose"
+    #       actions   = [
+    #         "logs:CreateLogGroup",
+    #         "logs:CreateLogStream",
+    #         "logs:PutLogEvents",
+    #         "logs:DescribeLogStreams",
+    #         "s3:*"
+    #       ]
+    #       effect    = "Allow"
+    #       resources = ["*"]
+    #     }
+    #   ]
+      
+    #   # task 내부의 컨테이너에서 aws 서비스 호출을 위한 task exec 설정
+    #   task_exec_iam_statements = [
+    #     {
+    #       sid       = "AllowS3"
+    #       actions   = [
+    #         "s3:*"
+    #       ]
+    #       effect    = "Allow"
+    #       resources = ["*"]
+    #     }
+    #   ]
+      
+    #   load_balancer = {
+    #     service = {
+    #       target_group_arn = module.alb.target_groups["log-target"].arn
+    #       container_name   = "log-containers"
+    #       container_port   = local.nginx_port
+    #     }
+    #   }
+
+    #   subnet_ids = module.vpc.private_subnets
+    #   security_group_ingress_rules = {
+    #     alb_8080 = {
+    #       description                  = "Service port"
+    #       from_port                    = local.nginx_port
+    #       ip_protocol                  = "tcp"
+    #       referenced_security_group_id = module.alb.security_group_id
+    #     }
+    #   }
+    #   security_group_egress_rules = {
+    #     all = {
+    #       ip_protocol = "-1"
+    #       cidr_ipv4   = "0.0.0.0/0"
+    #     }
+    #   }
+    # }
+    
+    new-service = {
+      cpu    = 1024
+      memory = 2048
+      
+      requires_compatibilities = ["EC2"]
+      
+    # log continaer의 경우 EC2 위에 띄우기 위해 용량공급자 EC2로 설정
       capacity_provider_strategy = {
         # On-demand instances
         ex_1 = {
           capacity_provider = "ex_1"
           weight            = 1
           base              = 1
+        }
+      }
+      
+      volume = {
+        docker-logs = {
+          name       = "docker-logs"
+          host_path  = "/var/lib/docker/containers"
         }
       }
       
@@ -249,30 +301,37 @@ module "ecs" {
           memory    = 512
           essential = true
           image     = "public.ecr.aws/aws-observability/aws-for-fluent-bit:stable"
-          firelensConfiguration = {
-            type = "fluentbit"
-          }
-          environment = [
+          mountPoints = [
             {
-                "name": "aws_fluent_bit_config",
-                "value": "arn:aws:s3:::${aws_s3_bucket.fluentbit-conf.id}/init"
+              sourceVolume  = "docker-logs"
+              containerPath = "/var/lib/docker/containers"
+              readOnly      = true
             }
           ]
+          firelensConfiguration = {
+            type = "fluentbit"
+            options = {
+              enable-ecs-log-metadata = "false"
+              config-file-type = "s3"
+              config-file-value = "arn:aws:s3:::ecs-logging-workshop-fb-mokgzwcbgbfcfopm/fluent-bit-custom.conf"
+            }
+          }
           memoryReservation = 50
         }
 
-        log-containers = {
+        new-containers = {
           cpu       = 256
           memory    = 512
           essential = true
-          image     = "public.ecr.aws/d4j3m3g7/gguduck/registry:logsv2.3"
+          # image = "bitnami/jsonnet:latest"
+          image     = "public.ecr.aws/d4j3m3g7/gguduck/registry:newsv0.2"
           requires_compatibilities = ["EC2"]
           launch_type = "EC2"
           
           portMappings = [
             {
-              name          = "log-container-port"
-              containerPort = local.nginx_port
+              name          = "new-container-port"
+              containerPort = "9090"
               protocol      = "tcp"
             }
           ]
@@ -291,7 +350,7 @@ module "ecs" {
               Name             = "cloudwatch"
               region           = "ap-northeast-2"
               log_key          = "log"
-              log_group_name   = "/ecs-workshop/${local.project}/application"
+              log_group_name   = "/ecs-workshop/${local.project}/new"
               auto_create_group = "true"
               log_stream_name  = "${local.project}"
               retry_limit      = "2"
@@ -317,19 +376,23 @@ module "ecs" {
         }
       ]
       
-      load_balancer = {
-        service = {
-          target_group_arn = module.alb.target_groups["log-target"].arn
-          container_name   = "log-containers"
-          container_port   = local.nginx_port
+      # task 내부의 컨테이너에서 aws 서비스 호출을 위한 task exec 설정
+      task_exec_iam_statements = [
+        {
+          sid       = "AllowS3"
+          actions   = [
+            "s3:*"
+          ]
+          effect    = "Allow"
+          resources = ["*"]
         }
-      }
+      ]
 
       subnet_ids = module.vpc.private_subnets
       security_group_ingress_rules = {
-        alb_8080 = {
+        alb_9090 = {
           description                  = "Service port"
-          from_port                    = local.nginx_port
+          from_port                    = "9090"
           ip_protocol                  = "tcp"
           referenced_security_group_id = module.alb.security_group_id
         }
@@ -355,6 +418,14 @@ module "ecs" {
 #   --desired-capacity 1 \
 #   --region ap-northeast-2
 
+# 기존의 ec2를 삭제
+# aws ec2 terminate-instances \
+#   --instance-ids $(aws ec2 describe-instances \
+#     --filters "Name=tag:aws:autoscaling:groupName,Values=ecs-logging-workshop-*" \
+#               "Name=instance-state-name,Values=running" \
+#     --query "Reservations[].Instances[].InstanceId" \
+#     --output text)
+
 # ec2 접근 후 sudo -i
 # docker exec -it $(docker ps --filter "ancestor=public.ecr.aws/aws-observability/aws-for-fluent-bit:stable" -q) sh
 
@@ -362,3 +433,5 @@ module "ecs" {
 # cd /fluent-bit/etc
 
 # cd /var/lib/docker/containers/$(docker ps --filter "ancestor=public.ecr.aws/d4j3m3g7/gguduck/registry:websv0.5" -q) sh
+
+# aws s3 cp fluentbit-conf/init "s3://$(terraform output -raw fb_bucket_name)"
